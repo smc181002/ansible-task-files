@@ -1,0 +1,51 @@
+- hosts: web
+  vars:
+    pathmount: /websrc/
+  tasks:
+    - name: configure yum 
+      yum_repository:
+        name: docker-ce2
+        description: to install docker
+        baseurl: https://download.docker.com/linux/centos/7/x86_64/stable/
+        gpgcheck: no
+
+    - name: install docker
+      package: 
+        name: "docker-ce"
+        state: present
+
+    - name: start docker
+      service: 
+        name: docker
+        state: started
+
+    - name: install docker python package
+      pip:
+        name: docker
+
+    - name: create directory to store files
+      file: 
+        path: "{{ pathmount }}"
+        state: directory
+    - name: copy files to host os
+      copy:
+        src: ./index.html
+        dest: "{{ pathmount }}"
+ 
+    - name: start container
+      docker_container:
+        name: webserver
+        image: centos/httpd
+        ports:
+          - "80"
+        mounts:
+          - source: "{{ pathmount }}"
+            target: /var/www/html
+            read_only: yes
+            type: bind
+      register: result
+
+
+    - name: print port
+      debug:
+        msg: "192.168.226.140:{{result.container.NetworkSettings.Ports['80/tcp'][0].HostPort}}"
