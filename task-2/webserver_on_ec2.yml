@@ -1,0 +1,54 @@
+- hosts: localhost
+  vars_files: 
+    - cred.yml
+  tasks:
+  - name: create ec2 instance in aws
+    ec2:
+      key_name: "mypem11"
+      instance_type: "t2.micro"
+      image: "ami-0ebc1ac48dfd14136"
+      wait: yes
+      wait_timeout: 300
+      vpc_subnet_id: "subnet-08f36788b8dbb4452"
+      group_id: "sg-040c0a171e0c5ec03"
+      region: "ap-south-1"
+      assign_public_ip: yes
+      instance_tags:
+        name: test
+      aws_access_key: "{{ accesskey }}"
+      aws_secret_key: "{{ secretkey }}"
+    register: ec2
+  - debug:
+      var: ec2.instances[0]
+
+  - name: Create SSH Group to login dynamically to EC2 Instance
+    add_host: hostname={{ item.public_ip }} groups=ec2_server
+    loop: "{{ec2.instances}}"
+
+  - name: wait for ssh to stare
+    wait_for: 
+      host: "{{ item.public_ip }}"
+      port: 22
+      state: started
+    loop: "{{ec2.instances}}"
+
+- hosts: ec2_server
+  remote_user: "ec2-user"
+  gather_facts: yes
+  become: yes
+  tasks: 
+    - name: install httpd server and php
+      package:
+        name:
+          - httpd
+          - php
+        state: present
+    - name: add index.html
+      copy:
+        content: "welcome to index file. This is hostsed from ansible"
+        dest: /var/www/html/index.html
+
+    - name: start httpd
+      service:
+        name: httpd
+        state: started
